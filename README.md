@@ -3,7 +3,7 @@
 TensorFlow implementation of [Image Captioning using Sentiment and Attention](https://arxiv.org/abs/1811.09789).
 
 <p align="center">
-<img src="./image/platform.jpg" width=500 high=700>
+<img src="./image/platform.jpg" width=350 high=500>
 </p>
 
 ### Reference
