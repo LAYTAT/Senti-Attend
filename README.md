@@ -29,5 +29,3 @@ We train our models using both [Microsoft COCO Dataset](http://cocodataset.org/#
 ### Contents
 1. [Train code](./train.py)
 2. [Test code](./test.py)
-
-Senti-Attend is inspired from [Show-Attend-Tell model](https://github.com/yunjey/show-attend-and-tell) in TensorFlow.
