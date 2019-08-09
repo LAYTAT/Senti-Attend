@@ -44,7 +44,7 @@ We train our models using both [Microsoft COCO Dataset](http://cocodataset.org/#
 1. Download [the pretrained model]() and unzip the model in "./model".
 2. Separate the positive part and the negative part for evaluation.
 3. Put the positive and the negative parts into './data_evaluation/positive' and './data_evaluation/negative', respectively. 
-2. python test.py (switch=1 for the positive part and switch=-1 for the negative part).
+2. python test.py (switch=1 for the positive part and switch=-1 for the negative part)
 
 ### Results
 |                   | BLEU-1 | BLEU-4 | METEOR | ROUGE-L | CIDEr | SPICE
