@@ -1,20 +1,15 @@
-from core.solver import CaptioningSolver
-from core.model import CaptionGenerator
-from core.utils import load_coco_data
+from lib.solver import CaptioningSolver
+from lib.SentiAttend import CaptionGenerator
+from lib.utils import load_coco_data
 import os
 
 def main():
 
-    save_path = './models/Senti-Attend/'
+    save_path = './model/'
 
-    switch = [-1]
+    data_save_path = './data/'
 
-    if switch == [1]:
-        data_save_path = './data_positive/'
-    else:
-        data_save_path = './data_negative/'
-
-    image_save_path = './dat_images/'
+    image_save_path = './images/'
 
     log_save_path = './log/'
 
@@ -25,17 +20,17 @@ def main():
 
     test_data = load_coco_data( data_path=data_save_path, split='test' )
 
-    model = CaptionGenerator( word_to_idx, dim_feature=[196, 516], dim_embed=512,
+    model = CaptionGenerator( word_to_idx, dim_feature=[49, 2048], dim_embed=512, dim_senti=256,
                                        dim_hidden=2048, n_time_step=20, prev2out=True,
                                                  ctx2out=True, alpha_c=1.0, selector=True, dropout=True )
 
     solver = CaptioningSolver( model, data, val_data, n_epochs=30, batch_size=180, update_rule='adam',
-                                          learning_rate=0.001, print_every=1, save_every=1, image_path=image_save_path,
+                                          learning_rate=0.001, print_every=1000, save_every=1, image_path=image_save_path,
                                     pretrained_model=None, model_path=save_path, test_model=os.path.join(save_path+'model-SA'),
                                      print_bleu=True, log_path=log_save_path, data_save_path=data_save_path )
 
-    # solver.train()
-    solver.test( test_data, 'test', senti=switch )
+    switch = [1]
+    solver.test( test_data, senti=switch )
 
 if __name__ == "__main__":
     main()

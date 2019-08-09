@@ -6,7 +6,7 @@ import os
 import cPickle as pickle
 from scipy import ndimage
 from utils import *
-sys.path.append('./coco-caption')
+sys.path.append('../coco-caption')
 from bleu import evaluate
 
 
@@ -128,10 +128,7 @@ class CaptioningSolver(object):
                 if self.print_bleu:
                     all_gen_cap = np.ndarray((val_features.shape[0], 20))
 
-                    pos = [1]
-                    neg = [-1]
-
-                    val_features[:, :, 512:516] = [0, 1, 0, 1]
+                    val_features[:, :, 2048:2052] = [1, 0, 0, 1]
 
                     for i in range(n_iters_val):
                         features_batch = val_features[i * self.batch_size:(i + 1) * self.batch_size]
@@ -145,8 +142,7 @@ class CaptioningSolver(object):
 
                     write_bleu(scores=scores, path=self.model_path, epoch=e, senti=pos)
 
-                    val_features[:, :, 512:516] = [0, 0, 1, 2]
-
+                    val_features[:, :, 2048:2052] = [0, 0, 1, 2]
                     for i in range(n_iters_val):
                         features_batch = val_features[i * self.batch_size:(i + 1) * self.batch_size]
                         feed_dict = {self.model.features: features_batch}
@@ -163,34 +159,34 @@ class CaptioningSolver(object):
                     saver.save(sess, os.path.join(self.model_path, 'model'), global_step=e + 1)
                     print "model-%s saved." % (e + 1)
 
-    def test(self, data, split='train', attention_visualization=False, save_sampled_captions=False, senti=[0]):
+    def test(self, data, attention_visualization=False, senti=[0]):
 
         max_len_captions = 20
 
         features = data['features']
-        comb_feats = np.zeros([features.shape[0], 196, 516], dtype=np.float32)
-        comb_feats[:, :, 0:516] = features
+        comb_feats = np.zeros([features.shape[0], 48, 2052], dtype=np.float32)
+        comb_feats[:, :, 0:2048] = features
 
         features = comb_feats
 
         if senti == [1]:
-            features[:, :, 512:516] = [0, 1, 0, 1]
+            features[:, :, 2048:2052] = [1, 0, 0, 1]
 
         elif senti == [-1]:
-            features[:, :, 512:516] = [0, 0, 1, 2]
+            features[:, :, 2048:2052] = [0, 0, 1, 2]
 
         else:
-            features[:, :, 512:516] = [1, 0, 0, 0]
+            features[:, :, 2048:2052] = [0, 1, 0, 0]
 
         if senti == [1]:
-            data_save_path = './data_positive/'
+            data_save_path = './data_evaluation/positive/'
         else:
-            data_save_path = '/data_negative/'
+            data_save_path = './data_evaluation/negative/'
 
         n_examples = self.data['captions'].shape[0]
         n_iters_per_epoch = int(np.floor(float(n_examples) / self.batch_size))
 
-        alphas, betas, sampled_captions = self.model.build_sampler(max_len=max_len_captions)  # (N, max_len, L), (N, max_len)
+        alphas, betas, sampled_captions = self.model.build_sampler(max_len=max_len_captions)
 
         config = tf.ConfigProto(allow_soft_placement=True)
         config.gpu_options.allow_growth = True
@@ -199,7 +195,7 @@ class CaptioningSolver(object):
             saver.restore(sess, self.test_model)
             features_batch, image_files = sample_coco_minibatch_inference(data, self.batch_size)
             feed_dict = {self.model.features: features_batch}
-            alps, bts, sam_cap = sess.run([alphas, betas, sampled_captions], feed_dict)  # (N, max_len, L), (N, max_len)
+            alps, bts, sam_cap = sess.run([alphas, betas, sampled_captions], feed_dict)
             decoded = decode_captions(sam_cap, self.model.idx_to_word)
 
             if self.print_bleu:
@@ -213,7 +209,6 @@ class CaptioningSolver(object):
                 all_decoded = decode_captions(all_gen_cap, self.model.idx_to_word)
 
                 save_pickle(all_decoded, os.path.join(data_save_path + 'test/test.candidate.captions.pkl'))
-                scores = evaluate(data_path=data_save_path, split=split, get_scores=True)
 
 
             if attention_visualization:
@@ -238,34 +233,4 @@ class CaptioningSolver(object):
                         alp_img = skimage.transform.pyramid_expand(alp_curr, upscale=16, sigma=20)
                         plt.imshow(alp_img, alpha=0.85)
                         plt.axis('off')
-                    plt.savefig(str(n) + 'test.pdf')
-
-            if save_sampled_captions:
-                all_sam_cap = np.ndarray((features.shape[0], max_len_captions))
-                num_iter = int(np.floor(float(features.shape[0]) / self.batch_size))
-                for i in range(num_iter):
-                    features_batch = features[i * self.batch_size:(i + 1) * self.batch_size]
-                    feed_dict = {self.model.features: features_batch}
-                    all_sam_cap[i * self.batch_size:(i + 1) * self.batch_size] = sess.run(sampled_captions, feed_dict)
-
-
-                all_decoded = decode_captions(all_sam_cap, self.model.idx_to_word)
-                save_pickle(all_decoded, "./data/%s/%s.candidate.captions.pkl" % (split, split))
-
-    def inference(self, data):
-
-        features = data['features']
-
-        alphas, betas, sampled_captions = self.model.build_sampler(max_len=20)
-
-        config = tf.ConfigProto(allow_soft_placement=True)
-        config.gpu_options.allow_growth = True
-        with tf.Session(config=config) as sess:
-            saver = tf.train.Saver()
-            saver.restore(sess, './model/lstm/model-20')
-            features_batch, image_files = sample_coco_minibatch_inference(data, self.batch_size)
-            feed_dict = {self.model.features: features_batch}
-            alps, bts, sam_cap = sess.run([alphas, betas, sampled_captions], feed_dict)
-            decoded = decode_captions(sam_cap, self.model.idx_to_word)
-            print "end"
-            print decoded
+                    plt.savefig(str(n) + 'test.jpg')

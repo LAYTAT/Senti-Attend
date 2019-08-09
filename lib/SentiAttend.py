@@ -5,7 +5,8 @@ import tensorflow as tf
 import numpy as np
 
 class CaptionGenerator(object):
-    def __init__(self, word_to_idx, dim_feature=[196, 512], dim_embed=512, dim_hidden=1024, n_time_step=16,
+
+    def __init__(self, word_to_idx, dim_feature=[49, 2048], dim_embed=512, dim_senti=256, dim_hidden=1024, n_time_step=16,
                  prev2out=True, ctx2out=True, alpha_c=0.0, selector=True, dropout=True):
 
         self.word_to_idx = word_to_idx
@@ -21,6 +22,7 @@ class CaptionGenerator(object):
         self.M = dim_embed
         self.H = dim_hidden
         self.T = n_time_step
+        self.S = dim_senti
         self._start = word_to_idx['<START>']
         self._null = word_to_idx['<NULL>']
         self._end = word_to_idx['<END>']
@@ -38,11 +40,11 @@ class CaptionGenerator(object):
         with tf.variable_scope('initial_lstm'):
             features_mean = tf.reduce_mean(features, 1)
 
-            w_h = tf.get_variable('w_h', [512, self.H], initializer=self.weight_initializer)
+            w_h = tf.get_variable('w_h', [self.D, self.H], initializer=self.weight_initializer)
             b_h = tf.get_variable('b_h', [self.H], initializer=self.const_initializer)
             h = tf.nn.tanh(tf.matmul(features_mean, w_h) + b_h)
 
-            w_c = tf.get_variable('w_c', [512, self.H], initializer=self.weight_initializer)
+            w_c = tf.get_variable('w_c', [self.D, self.H], initializer=self.weight_initializer)
             b_c = tf.get_variable('b_c', [self.H], initializer=self.const_initializer)
             c = tf.nn.tanh(tf.matmul(features_mean, w_c) + b_c)
             return c, h
@@ -55,34 +57,34 @@ class CaptionGenerator(object):
 
     def _int_embedding(self, inputs, reuse=False):
         with tf.variable_scope('int_embedding', reuse=reuse):
-            w = tf.get_variable('w', [3, 256], initializer=self.senti_initializer, trainable=True)
+            w = tf.get_variable('w', [3, self.S], initializer=self.senti_initializer, trainable=True)
             x = tf.nn.embedding_lookup(w, inputs, name='int_vector')
             x = x[:,0,:]
             return x
 
     def _ext_embedding(self, inputs, reuse=False):
         with tf.variable_scope('ext_embedding', reuse=reuse):
-            w = tf.get_variable('w', [3, 256], initializer=self.senti_initializer, trainable=True)
+            w = tf.get_variable('w', [3, self.S], initializer=self.senti_initializer, trainable=True)
             x = tf.nn.embedding_lookup(w, inputs, name='ext_vector')
             x = x[:,0,:]
             return x
 
     def _project_features(self, features):
         with tf.variable_scope('project_features'):
-            w = tf.get_variable('w', [512, 512], initializer=self.weight_initializer)
-            features_flat = tf.reshape(features, [-1, 512])
+            w = tf.get_variable('w', [self.D, self.D], initializer=self.weight_initializer)
+            features_flat = tf.reshape(features, [-1, self.D])
             features_proj = tf.matmul(features_flat, w)
-            features_proj = tf.reshape(features_proj, [-1, self.L, 512])
+            features_proj = tf.reshape(features_proj, [-1, self.L, self.D])
             return features_proj
 
     def _attention_layer(self, features, features_proj, h, reuse=False):
         with tf.variable_scope('attention_layer', reuse=reuse):
-            w = tf.get_variable('w', [self.H, 512], initializer=self.weight_initializer)
-            b = tf.get_variable('b', [512], initializer=self.const_initializer)
-            w_att = tf.get_variable('w_att', [512, 1], initializer=self.weight_initializer)
+            w = tf.get_variable('w', [self.H, self.D], initializer=self.weight_initializer)
+            b = tf.get_variable('b', [self.D], initializer=self.const_initializer)
+            w_att = tf.get_variable('w_att', [self.D, 1], initializer=self.weight_initializer)
 
             h_att = tf.nn.relu(features_proj + tf.expand_dims(tf.matmul(h, w), 1) + b)
-            out_att = tf.reshape(tf.matmul(tf.reshape(h_att, [-1, 512]), w_att), [-1, self.L])
+            out_att = tf.reshape(tf.matmul(tf.reshape(h_att, [-1, self.D]), w_att), [-1, self.L])
             alpha = tf.nn.softmax(out_att)
             context = tf.reduce_sum(features * tf.expand_dims(alpha, 2), 1, name='context')
             return context, alpha
@@ -108,7 +110,7 @@ class CaptionGenerator(object):
             h_logits = tf.matmul(h, w_h) + b_h
 
             if self.ctx2out:
-                w_ctx2out = tf.get_variable('w_ctx2out', [512, self.M], initializer=self.weight_initializer)
+                w_ctx2out = tf.get_variable('w_ctx2out', [self.D, self.M], initializer=self.weight_initializer)
                 h_logits += tf.matmul(context, w_ctx2out)
 
             if self.prev2out:
@@ -120,7 +122,7 @@ class CaptionGenerator(object):
 
             out_logits = tf.matmul(h_logits, w_out) + b_out
 
-            w_ctx2out_2 = tf.get_variable('w_ctx2out_2', [256, self.V], initializer=self.weight_initializer)
+            w_ctx2out_2 = tf.get_variable('w_ctx2out_2', [self.S, self.V], initializer=self.weight_initializer)
             out_logits += tf.matmul(features_senti, w_ctx2out_2)
 
             return out_logits
@@ -148,7 +150,7 @@ class CaptionGenerator(object):
         features_int = self._int_embedding(inputs=features_category)
         features_ext = self._ext_embedding(inputs=features_category)
 
-        features = self._batch_norm(features[:, :, 0:512], mode='train', name='conv_features')
+        features = self._batch_norm(features, mode='train', name='conv_features')
 
         c, h = self._get_initial_lstm(features=features)
         x = self._word_embedding(inputs=captions_in)
@@ -187,11 +189,11 @@ class CaptionGenerator(object):
     def build_sampler(self, max_len=20):
         features = self.features
 
-        features_category = tf.cast(features[:, 1, 515:516], tf.int32)
+        features_category = tf.cast(features, tf.int32)
         features_int = self._int_embedding(inputs=features_category)
         features_ext = self._ext_embedding(inputs=features_category)
 
-        features = self._batch_norm(features[:, :, 0:512], mode='test', name='conv_features')
+        features = self._batch_norm(features, mode='test', name='conv_features')
 
         c, h = self._get_initial_lstm(features=features)
         features_proj = self._project_features(features=features)
@@ -243,7 +245,7 @@ class CaptionGenerator(object):
         captions = self.sample_caption[:, 4:self.T]
         mask = tf.to_float(tf.not_equal(captions, self._null))
 
-        features = self._batch_norm(features[:, :, 0:512], mode='test', name='conv_features')
+        features = self._batch_norm(features, mode='test', name='conv_features')
 
         c, h = self._get_initial_lstm(features=features)
         x = self._word_embedding(inputs=captions)
@@ -276,7 +278,7 @@ class CaptionGenerator(object):
 
             loss.append( tf.transpose(tf.multiply(tf.transpose(tf.log(tf.clip_by_value(softmax, 1e-20, 1.0)) * tf.one_hot(captions[:, t], self.V), [1, 0]),  mask[:, t]), [1, 0]))
 
-        loss_out = tf.transpose(tf.stack(loss), (1, 0, 2))  # (N, T, max_len)
+        loss_out = tf.transpose(tf.stack(loss), (1, 0, 2))
 
         return loss_out
 
@@ -284,11 +286,11 @@ class CaptionGenerator(object):
     def build_multinomial_sampler(self, max_len=16):
         features = self.features
 
-        features_category = tf.cast(features[:, 1, 515:516], tf.int32)
-        features_int = self._int_embedding(inputs=features_category )#, reuse=True)
-        features_ext = self._ext_embedding(inputs=features_category) #, reuse=True)
+        features_category = tf.cast(features, tf.int32)
+        features_int = self._int_embedding(inputs=features_category )
+        features_ext = self._ext_embedding(inputs=features_category)
 
-        features = self._batch_norm(features[:, :, 0:512], mode='test', name='conv_features')
+        features = self._batch_norm(features, mode='test', name='conv_features')
 
         c, h = self._get_initial_lstm(features=features)
         features_proj = self._project_features(features=features)

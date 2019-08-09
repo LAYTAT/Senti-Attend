@@ -9,13 +9,12 @@ def load_coco_data(data_path='./data', split='train'):
 
     start_t = time.time()
     data = {}
-    # use validation data to debug
+
     if split == "debug":
         split = 'val'
         with open(os.path.join(os.path.join(data_path, 'train'), 'word_to_idx.pkl'), 'rb') as f:
             data['word_to_idx'] = pickle.load(f)
     data_path = os.path.join(data_path, split)
-    # if split is not 'train':
     data['features'] = hickle.load(os.path.join(data_path, '%s.features.hkl' % split))
     with open(os.path.join(data_path, '%s.file.names.pkl' % split), 'rb') as f:
         data['file_names'] = pickle.load(f)
@@ -122,8 +121,6 @@ def sample_coco_minibatch(data, batch_size):
 
 
 def sample_coco_minibatch_inference(data, batch_size):
-    data_size = data['features'].shape[0]
-    # mask = np.random.choice(data_size, batch_size)
     mask = np.array([0,1,2,3,4,5,6,7,8,9])
     features = data['features'][mask]
     file_names = data['file_names'][mask]

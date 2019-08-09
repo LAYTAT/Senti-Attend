@@ -45,22 +45,16 @@ def evaluate_for_particular_captions(cand, data_path='./data', split='val', get_
     reference_path = os.path.join(data_path, "%s/%s.references.pkl" % (split, split))
 
 
-    # load caption data
     with open(reference_path, 'rb') as f:
         ref = pickle.load(f)
-    # with open(candidate_path, 'rb') as f:
-    #     cand = pickle.load(f)
 
-    # make dictionary
     hypo = {}
     refe = {}
     for i, caption in enumerate(cand):
         hypo[i] = [caption]
         refe[i] = ref[i]
-    # compute bleu score
-    final_scores = score_all(refe, hypo)
 
-    # print out scores
+    final_scores = score_all(refe, hypo)
 
     return final_scores
 
@@ -73,20 +67,17 @@ def evaluate_captions(ref,cand):
         hypo[i] = [caption]
         refe[i] = ref[i]
     final_scores = score(refe, hypo)
-    # return final_scores['Bleu_1']
     return 1*final_scores['Bleu_4'] + 1*final_scores['Bleu_3'] + 0.5*final_scores['Bleu_1'] + 0.5*final_scores['Bleu_2']
 
 def evaluate(data_path='./data', split='val', get_scores=False):
     reference_path = os.path.join(data_path, "%s/%s.references.pkl" %(split, split))
     candidate_path = os.path.join(data_path, "%s/%s.candidate.captions.pkl" %(split, split))
-    
-    # load caption data
+
     with open(reference_path, 'rb') as f:
         ref = pickle.load(f)
     with open(candidate_path, 'rb') as f:
         cand = pickle.load(f)
-    
-    # make dictionary
+
     hypo = {}
     for i, caption in enumerate(cand):
         hypo[i] = [caption]
